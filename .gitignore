@@ -4,3 +4,4 @@ artifacts/
 *.pickle
 *.pkl
 *.joblib
+synthetic_fraud_data.csv
