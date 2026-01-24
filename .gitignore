@@ -1,0 +1,6 @@
+*.csv
+data/
+artifacts/
+*.pickle
+*.pkl
+*.joblib
