@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  serving-api:
+    build: 
+      context: ./serving
+      dockerfile: Dockerfile
+    container_name: serving-api
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+      - ./artifacts:/artifacts
+    environment:
+      - MODEL_PATH=/artifacts/model.pickle
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/fraud-alert
+    networks:
+      - mlops-network
+
+  webapp:
+    build:
+      context: ./webapp
+      dockerfile: Dockerfile
+    container_name: webapp
+    ports:
+      - "8501:8501"
+    environment:
+      - SERVING_API_URL=http://serving-api:8080
+    depends_on:
+      - serving-api
+    networks:
+      - mlops-network
+
+  reporting:
+    build:
+      context: ./reporting
+      dockerfile: Dockerfile
+    container_name: reporting
+    volumes:
+      - ./data:/data
+      - ./reporting_workspace:/app/workspace
+    ports:
+      - "8000:8000"
+    networks:
+      - mlops-network
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    environment:
+      - N8N_ basic_auth_active=false
+    networks:
+      - mlops-network
+
+networks:
+  mlops-network:
+    driver: bridge
+
+volumes:
+  n8n_data:

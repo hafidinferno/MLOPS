@@ -1,0 +1,57 @@
+{
+  "name": "Fraud Detection Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "fraud-alert",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-node-id",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "fraud-alert-webhook"
+    },
+    {
+      "parameters": {
+        "fromEmail": "fraud-alert@example.com",
+        "toEmail": "={{ $json.body.transaction.email }}",
+        "subject": "Fraud Alert Detected",
+        "text": "=Fraud verification required.\n\nTransaction Details:\nAmount: {{ $json.body.transaction.amount }} {{ $json.body.transaction.currency }}\nMerchant: {{ $json.body.transaction.merchant_type }}\n\nProbability: {{ $json.body.probability }}",
+        "options": {}
+      },
+      "id": "email-node-id",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.email",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
