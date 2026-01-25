@@ -53,6 +53,8 @@ services:
       - n8n_data:/home/node/.n8n
     environment:
       - N8N_ basic_auth_active=false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - mlops-network
 

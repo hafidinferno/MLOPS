@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import json
 import os
+import uuid
 
 # Configuration
 SERVING_API_URL = os.getenv("SERVING_API_URL", "http://serving-api:8080")
@@ -107,7 +108,8 @@ if submitted:
         "card_present": card_present, "device": device, "channel": channel,
         "distance_from_home": distance_from_home, "transaction_hour": transaction_hour,
         "weekend_transaction": weekend_transaction,
-        "email": client_email_input
+        "email": client_email_input,
+        "transaction_id": str(uuid.uuid4())
     }
     
     with col2:
@@ -187,22 +189,46 @@ if 'last_tx' in st.session_state:
         # Pre-fill with the email from the transaction
         default_email = st.session_state['last_tx'].get('email', '')
         client_email = st.text_input("📧 Email du client pour la notification", value=default_email)
+        
+        # Debug Mode Toggle
+        debug_mode = st.checkbox("🛠️ Mode Test (Debug n8n)", value=True, help="Si coché, envoie vers /webhook-test (pour l'éditeur n8n). Sinon vers /webhook (Production).")
 
         if st.button("Notifier l'utilisateur"):
             if client_email:
-                # Prepare payload (update email if changed)
-                payload = st.session_state['last_tx'].copy()
-                payload["email"] = client_email
-                payload["probability"] = st.session_state['last_pred']['probability']
+                # Prepare payload for n8nAgent
+                # We need to structure it as expected by the Agent (e.g., inside "transaction" and "prediction")
+                
+                n8n_payload = {
+                    "body": {
+                        "transaction": {
+                            **st.session_state['last_tx'],
+                            "email": client_email  # Ensure latest email is used
+                        },
+                        "prediction": {
+                            "probability": st.session_state['last_pred']['probability'],
+                            "risk_level": "High" if st.session_state['last_pred']['probability'] > 0.8 else "Medium"
+                        }
+                    }
+                }
+                
+                # Determine URL based on Debug Mode
+                webhook_type = "webhook-test" if debug_mode else "webhook"
+                n8n_url = f"http://n8n:5678/{webhook_type}/fraud-alert"
                 
                 # Send to n8n webhook
                 try:
-                    # Using n8n container name/port
-                    response = requests.post("http://n8n:5678/webhook/fraud-alert", json=payload, timeout=5)
+                    # Note: The body key is automatically handled if we pass json=n8n_payload['body']
+                    # But n8n $json usually expects the root object. 
+                    # If I send json=n8n_payload['body'], n8n receives { "transaction": ..., "prediction": ... }
+                    # Then $json.body.transaction works (because n8n puts the POST body into 'body' property).
+                    
+                    st.info(f"Envoi vers : `{n8n_url}`...")
+                    response = requests.post(n8n_url, json=n8n_payload["body"], timeout=5)
+                    
                     if response.status_code == 200:
                         st.success(f"L'agent Antigravity va notifier {client_email}")
                     else:
-                        st.error(f"Erreur n8n: {response.text}")
+                        st.error(f"Erreur n8n ({response.status_code}): {response.text}")
                 except Exception as e:
                     st.error(f"Erreur de connexion avec n8n: {e}")
             else:
