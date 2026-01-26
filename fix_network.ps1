@@ -8,7 +8,7 @@ if( $found ){
   exit;
 }
 
-$ports=@(8080, 8501, 8000, 5678);
+$ports=@(8080, 8501, 8000, 5679);
 
 echo "WSL IP Address is: $remoteport"
 

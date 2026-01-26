@@ -213,7 +213,8 @@ if 'last_tx' in st.session_state:
                 
                 # Determine URL based on Debug Mode
                 webhook_type = "webhook-test" if debug_mode else "webhook"
-                n8n_url = f"http://n8n:5678/{webhook_type}/fraud-alert"
+                n8n_base_url = os.getenv("N8N_URL", "http://n8n:5678").rstrip('/')
+                n8n_url = f"{n8n_base_url}/{webhook_type}/fraud-alert"
                 
                 # Send to n8n webhook
                 try:
@@ -230,6 +231,19 @@ if 'last_tx' in st.session_state:
                     else:
                         st.error(f"Erreur n8n ({response.status_code}): {response.text}")
                 except Exception as e:
-                    st.error(f"Erreur de connexion avec n8n: {e}")
+                    # Fallback logic: If 'n8n' name resolution failed, try 'localhost'
+                    if "n8n" in n8n_url and ("Name or service not known" in str(e) or "Failed to resolve" in str(e)):
+                        st.warning(f"Échec connexion {n8n_url}. Tentative avec localhost...")
+                        try:
+                            fallback_url = n8n_url.replace("n8n", "localhost")
+                            response = requests.post(fallback_url, json=n8n_payload["body"], timeout=5)
+                            if response.status_code == 200:
+                                st.success(f"Notification envoyée via localhost à {client_email}")
+                            else:
+                                st.error(f"Erreur n8n localhost ({response.status_code}): {response.text}")
+                        except Exception as e2:
+                            st.error(f"Erreur de connexion (n8n & localhost): {e2}")
+                    else:
+                        st.error(f"Erreur de connexion avec n8n: {e}")
             else:
                 st.warning("Veuillez saisir un email avant de notifier.")

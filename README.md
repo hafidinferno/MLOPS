@@ -21,7 +21,7 @@ Project MLOps complet incluant Entraînement, API Serving, Interface Web et Moni
 | **Web App** 🖥️ | [http://localhost:8501](http://localhost:8501) | Interface de détection de fraude (Streamlit) |
 | **Serving API** ⚙️ | [http://localhost:8080/docs](http://localhost:8080/docs) | API d'inférence (FastAPI / Swagger) |
 | **Reporting** 📊 | [http://localhost:8000](http://localhost:8000) | Dashboard de Monitoring (Evidently) |
-| **Automation** 🤖 | [http://localhost:5678](http://localhost:5678) | Workflow et Alerting (n8n) |
+| **Automation** 🤖 | [http://localhost:5679](http://localhost:5679) | Workflow et Alerting (n8n) |
 
 ## 🛠️ Dépannage
 Si `localhost` ne fonctionne pas (WSL), essayez l'IP locale :
