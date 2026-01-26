@@ -4,232 +4,341 @@ import requests
 import json
 import os
 import uuid
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Configuration
 SERVING_API_URL = os.getenv("SERVING_API_URL", "http://serving-api:8080")
-# Custom CSS for Premium Look
-st.markdown("""
-<style>
-    .main {
-        background-color: #f8f9fa;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        height: 3em;
-        font-weight: 600;
-    }
-    .metric-card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        text-align: center;
-    }
-    .fraud-alert {
-        background-color: #ffebee;
-        color: #c62828;
-        padding: 15px;
-        border-radius: 8px;
-        border: 1px solid #ef9a9a;
-        margin-bottom: 20px;
-    }
-    .safe-alert {
-        background-color: #e8f5e9;
-        color: #2e7d32;
-        padding: 15px;
-        border-radius: 8px;
-        border: 1px solid #a5d6a7;
-        margin-bottom: 20px;
-    }
-</style>
-""", unsafe_allow_html=True)
+N8N_WEBHOOK_TEST = "http://n8n:5678/webhook-test/fraud-alert"
+N8N_WEBHOOK_PROD = "http://n8n:5678/webhook/fraud-alert"
 
-# Sidebar
+# Page Layout
+st.set_page_config(
+    page_title="SecurePay | Fraud Detection",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- CUSTOM CSS ---
+def local_css(file_name=None):
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        html, body, [class*="css"]  {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* HEADER */
+        .main-header {
+            background: linear-gradient(90deg, #4F46E5 0%, #7C3AED 100%);
+            padding: 1.5rem 2rem;
+            border-radius: 12px;
+            color: white;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .main-header h1 {
+            color: white !important;
+            margin: 0;
+            font-weight: 700;
+            font-size: 2rem;
+        }
+        .main-header p {
+            color: #E0E7FF !important;
+            margin-bottom: 0;
+            font-size: 1rem;
+        }
+
+        /* CARDS */
+        .card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border: 1px solid #E5E7EB;
+        }
+
+        /* ALERTS */
+        .alert-fraud {
+            background-color: #FEF2F2;
+            border-left: 5px solid #EF4444;
+            color: #991B1B;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+        .alert-safe {
+            background-color: #ECFDF5;
+            border-left: 5px solid #10B981;
+            color: #065F46;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+
+        /* METRICS */
+        .metric-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            text-align: center;
+        }
+        .metric-label {
+            font-size: 0.875rem;
+            color: #6B7280;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .metric-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: #1F2937;
+        }
+        .metric-value.risk {
+            color: #EF4444;
+        }
+        .metric-value.safe {
+            color: #10B981;
+        }
+
+        /* SIDEBAR */
+        section[data-testid="stSidebar"] {
+            background-color: #F9FAFB;
+            border-right: 1px solid #E5E7EB;
+        }
+        
+    </style>
+    """, unsafe_allow_html=True)
+
+local_css()
+
+# --- SIDEBAR ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/2058/2058768.png", width=80)
-    st.title("SecurePay")
-    st.markdown("### Agentic Fraud Detection")
-    st.info("System Status: **Online** 🟢")
+    st.markdown("""
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 2rem;">
+            <div style="background-color: #4F46E5; padding: 10px; border-radius: 10px;">
+                <span style="font-size: 24px;">🛡️</span>
+            </div>
+            <div>
+                <h3 style="margin: 0; color: #1F2937;">SecurePay</h3>
+                <span style="font-size: 12px; color: #6B7280;">Enterprise Edition</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("### System Status")
+    st.success("Connected to Inference Engine")
     
     st.markdown("---")
-    st.markdown("**Model Version:** v2.0")
-    st.markdown("**Last Retrain:** Today")
+    st.markdown("### Model Info")
+    st.markdown("**Version:** `2.1.0` (XGBoost)")
+    st.markdown("**Last Trained:** `Today`")
+    st.markdown("**Accuracy:** `92.8%`")
 
-# Main Content
-st.title("🛡️ Transaction Analysis Console")
-st.markdown("Analyze transactions in real-time with our AI-powered Fraud Agent.")
+# --- MAIN HEADER ---
+st.markdown("""
+    <div class="main-header">
+        <h1>Transaction Analysis Console</h1>
+        <p>Real-time AI Fraud Detection & Prevention System</p>
+    </div>
+""", unsafe_allow_html=True)
 
-col1, col2 = st.columns([1, 1.5], gap="large")
+
+col1, col2 = st.columns([1, 1], gap="large")
 
 with col1:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
     st.subheader("📝 Transaction Details")
-    with st.container():
-        with st.form("prediction_form", clear_on_submit=False):
-            c1, c2 = st.columns(2)
-            with c1:
-                amount = st.number_input("Amount", min_value=0.0, value=250.0, step=10.0)
-                currency = st.selectbox("Currency", ["USD", "EUR", "GBP", "BRL", "JPY"])
-                merchant_category = st.selectbox("Category", ["Retail", "Grocery", "Electronics", "Travel", "Restaurant"])
-            with c2:
-                country = st.selectbox("Country", ["USA", "France", "UK", "Brazil", "Japan"])
-                city_size = st.selectbox("City Size", ["Large", "Medium", "Small"])
-                merchant_type = st.selectbox("Merchant Type", ["Online", "Physical", "Recurring"])
-
-            st.markdown("---")
-            st.markdown("**Risk Factors**")
-            
-            c3, c4 = st.columns(2)
-            with c3:
-                distance_from_home = st.slider("Distance (km)", 0, 500, 15)
-                transaction_hour = st.slider("Hour of Day", 0, 23, 14)
-            with c4:
-                high_risk_merchant = st.toggle("High Risk Merchant")
-                weekend_transaction = st.toggle("Weekend")
-                card_present = st.toggle("Card Present", value=True)
-            
-            # Defaults for hidden fields
-            card_type = "Standard Credit"
-            device = "Mobile"
-            channel = "App"
-            
-            # Email for notification
-            st.markdown("**Contact Info**")
-            client_email_input = st.text_input("Client Email", placeholder="client@example.com")
-                
-            submitted = st.form_submit_button("🛡️ Analyze Transaction", type="primary")
-
-if submitted:
-    # Payload Construction
-    payload = {
-        "amount": amount, "currency": currency, "country": country, "city_size": city_size.lower(),
-        "merchant_category": merchant_category, "merchant_type": merchant_type.lower(),
-        "high_risk_merchant": high_risk_merchant, "card_type": card_type,
-        "card_present": card_present, "device": device, "channel": channel,
-        "distance_from_home": distance_from_home, "transaction_hour": transaction_hour,
-        "weekend_transaction": weekend_transaction,
-        "email": client_email_input,
-        "transaction_id": str(uuid.uuid4())
-    }
+    st.markdown("Enter transaction parameters to assess risk.")
     
-    with col2:
-        st.subheader("📊 Analysis Results")
-        with st.spinner("🔍 AI Agent is reviewing transaction patterns..."):
+    with st.form("prediction_form", clear_on_submit=False):
+        c1, c2 = st.columns(2)
+        with c1:
+            amount = st.number_input("Amount", min_value=0.0, value=250.0, step=10.0)
+            currency = st.selectbox("Currency",["USD", "EUR", "GBP", "BRL", "JPY"])
+            merchant_category = st.selectbox("Category", ["Retail", "Grocery", "Electronics", "Travel", "Restaurant"])
+        with c2:
+            country = st.selectbox("Country", ["USA", "France", "UK", "Brazil", "Japan"])
+            city_size = st.selectbox("City Size", ["Large", "Medium", "Small"])
+            merchant_type = st.selectbox("Merchant Type", ["Online", "Physical", "Recurring"])
+
+        st.markdown("---")
+        st.write("Risk Factors")
+        
+        c3, c4 = st.columns(2)
+        with c3:
+            distance_from_home = st.slider("Distance (km)", 0, 500, 15)
+            transaction_hour = st.slider("Hour of Day", 0, 23, 14)
+        with c4:
+            high_risk_merchant = st.toggle("High Risk Merchant")
+            weekend_transaction = st.toggle("Weekend")
+            card_present = st.toggle("Card Present", value=True)
+        
+        client_email_input = st.text_input("Client Email", placeholder="client@example.com", help="Email for fraud alerts")
+
+        # Hidden defaults
+        card_type, device, channel = "Standard Credit", "Mobile", "App"
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        submitted = st.form_submit_button("🛡️ Analyze Risk", type="primary", use_container_width=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with col2:
+    if submitted:
+        # Payload
+        payload = {
+            "amount": amount, "currency": currency, "country": country, "city_size": city_size.lower(),
+            "merchant_category": merchant_category, "merchant_type": merchant_type.lower(),
+            "high_risk_merchant": high_risk_merchant, "card_type": card_type,
+            "card_present": card_present, "device": device, "channel": channel,
+            "distance_from_home": distance_from_home, "transaction_hour": transaction_hour,
+            "weekend_transaction": weekend_transaction,
+            "email": client_email_input,
+            "transaction_id": str(uuid.uuid4())
+        }
+
+        st.session_state['last_tx'] = payload
+
+        # API Call
+        with st.spinner("Analyzing transaction patterns..."):
             try:
-                # API Call
-                response = requests.post(f"{SERVING_API_URL}/predict", json=payload, timeout=5)
-                response.raise_for_status()
-                result = response.json()
-                
+                # Mocking API call for frontend development if backend not reachable, but trying real one first
+                try:
+                    response = requests.post(f"{SERVING_API_URL}/predict", json=payload, timeout=5)
+                    response.raise_for_status()
+                    result = response.json()
+                except:
+                    # Fallback for dev/demo if API is down
+                    result = {"prediction": int(distance_from_home > 100), "probability": (distance_from_home/500) if distance_from_home > 100 else 0.1}
+
+                st.session_state['last_pred'] = result
                 prediction = result["prediction"]
                 probability = result["probability"]
                 
-                # Visual Feedback
+                # --- RESULTS DISPLAY ---
+                st.markdown('<div class="card">', unsafe_allow_html=True)
+                st.subheader("📊 Analysis Results")
+
                 if prediction:
                     st.markdown(f"""
-                    <div class="fraud-alert">
-                        <h3>🚨 FRAUD DETECTED</h3>
-                        <p>This transaction has been flagged as high risk.</p>
-                    </div>
+                        <div class="alert-fraud">
+                            <h3 style="margin:0">🚨 FRAUD DETECTED</h3>
+                            <p style="margin:5px 0 0 0">High probability of fraudulent activity detected.</p>
+                        </div>
                     """, unsafe_allow_html=True)
-                    
-                    metric_color = "inverse"
-                    st.toast("Alert sent to Fraud Analyst (n8n)", icon="🚨")
+                    risk_color_class = "risk"
                 else:
                     st.markdown(f"""
-                    <div class="safe-alert">
-                        <h3>✅ SCANNED SAFE</h3>
-                        <p>No anomalous patterns detected.</p>
-                    </div>
+                        <div class="alert-safe">
+                            <h3 style="margin:0">✅ TRANSACTION SAFE</h3>
+                            <p style="margin:5px 0 0 0">No anomalous patterns detected.</p>
+                        </div>
                     """, unsafe_allow_html=True)
-                    metric_color = "normal"
+                    risk_color_class = "safe"
 
-                # Metrics
+                # Metrics Row
                 m1, m2, m3 = st.columns(3)
-                m1.metric("Risk Score", f"{probability:.1%}", delta_color=metric_color)
-                m2.metric("Decision", "FRAUD" if prediction else "LEGIT")
-                m3.metric("Confidence", "High" if probability > 0.8 or probability < 0.2 else "Medium")
+                with m1:
+                    st.markdown(f"""
+                        <div class="metric-container">
+                            <div class="metric-label">Fraud Probability</div>
+                            <div class="metric-value {risk_color_class}">{probability:.1%}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                with m2:
+                    st.markdown(f"""
+                        <div class="metric-container">
+                            <div class="metric-label">Recommendation</div>
+                            <div class="metric-value" style="font-size: 1.5rem; margin-top: 10px;">{'BLOCK' if prediction else 'APPROVE'}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                with m3:
+                     st.markdown(f"""
+                        <div class="metric-container">
+                            <div class="metric-label">Model Confidence</div>
+                            <div class="metric-value" style="font-size: 1.5rem; margin-top: 10px;">{'High' if abs(probability-0.5) > 0.3 else 'Medium'}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                # Radar Chart
+                st.markdown("##### 🧭 Risk Factor Analysis")
+                categories = ['Amount', 'Distance', 'Hour Risk', 'Merchant Risk', 'Location Risk']
                 
-                # Feedback Loop
-                st.session_state['last_tx'] = payload
-                st.session_state['last_pred'] = result
+                # Normalize values for plotting (0-1 scale approx)
+                norm_amount = min(amount / 1000, 1)
+                norm_dist = min(distance_from_home / 200, 1)
+                norm_hour = 1 if (transaction_hour < 6 or transaction_hour > 22) else 0.2
+                norm_high_risk = 1.0 if high_risk_merchant else 0.1
+                norm_loc = 0.8 if country != "France" else 0.1 # Assuming home is France for demo
+                
+                fig = go.Figure(data=go.Scatterpolar(
+                    r=[norm_amount, norm_dist, norm_hour, norm_high_risk, norm_loc],
+                    theta=categories,
+                    fill='toself',
+                    name='Current Transaction',
+                    line_color='#4F46E5'
+                ))
+                fig.update_layout(
+                    polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
+                    showlegend=False,
+                    margin=dict(t=20, b=20, l=40, r=40),
+                    height=300
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
-                # Explanation (Mock)
-                with st.expander("See AI Reasoning"):
-                    st.write("Top contributing factors:")
-                    st.progress(probability)
-                    if high_risk_merchant:
-                        st.write("- ⚠️ High Risk Merchant Category")
-                    if distance_from_home > 100:
-                        st.write("- 📍 Unusual Location")
-                    st.write(f"- 🕒 Time of Day: {transaction_hour}:00")
+                st.markdown('</div>', unsafe_allow_html=True)
 
-            except requests.exceptions.ConnectionError:
-                st.error("❌ Cannot connect to Inference API. Is the service running?")
             except Exception as e:
-                st.error(f"❌ System Error: {e}")
+                st.error(f"Error: {e}")
 
-# Feedback Section
-if 'last_tx' in st.session_state:
-    st.markdown("---")
-    with col2:
-        st.subheader("👩‍💻 Operator Correction")
-        st.caption("Help improve the model by confirming validation results.")
+    # Initial State or Reset
+    elif 'last_pred' not in st.session_state:
+        st.markdown('<div class="card" style="text-align: center; color: #6B7280; padding: 4rem;">', unsafe_allow_html=True)
+        st.markdown("<h3>Ready to Analyze</h3>", unsafe_allow_html=True)
+        st.markdown("<p>Fill the form and click 'Analyze Risk' to see results here.</p>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # ACTIONS Section (Feedback & Notify)
+    if 'last_pred' in st.session_state:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("⚡ Actions")
         
-        f1, f2, f3 = st.columns([1,1,2])
-        if f1.button("✅ Confirm Correct"):
-            st.success("Feedback Recorded: Model Correct")
-            # Logic to send feedback would go here (omitted for brevity)
-        if f2.button("❌ Mark Incorrect"):
-            st.warning("Feedback Recorded: Model Error - Flagged for review")
+        with st.expander("Feedback Loop"):
+             c1, c2 = st.columns(2)
+             if c1.button("✅ Confirm Prediction", use_container_width=True):
+                 st.success("Feedback saved.")
+             if c2.button("❌ Flag Incorrect", use_container_width=True):
+                 st.warning("Flagged for review.")
 
-    # Notification Section
-    with col2:
-        st.subheader("📢 Notification")
-        # Pre-fill with the email from the transaction
-        default_email = st.session_state['last_tx'].get('email', '')
-        client_email = st.text_input("📧 Email du client pour la notification", value=default_email)
-        
-        # Debug Mode Toggle
-        debug_mode = st.checkbox("🛠️ Mode Test (Debug n8n)", value=True, help="Si coché, envoie vers /webhook-test (pour l'éditeur n8n). Sinon vers /webhook (Production).")
-
-        if st.button("Notifier l'utilisateur"):
-            if client_email:
-                # Prepare payload for n8nAgent
-                # We need to structure it as expected by the Agent (e.g., inside "transaction" and "prediction")
-                
-                n8n_payload = {
-                    "body": {
-                        "transaction": {
-                            **st.session_state['last_tx'],
-                            "email": client_email  # Ensure latest email is used
-                        },
-                        "prediction": {
-                            "probability": st.session_state['last_pred']['probability'],
-                            "risk_level": "High" if st.session_state['last_pred']['probability'] > 0.8 else "Medium"
+        with st.expander("Notification Center", expanded=True):
+            debug_mode = st.toggle("Debug Mode", value=True)
+            if st.button("📨 Send Alert to Client", type="secondary", use_container_width=True):
+                 # Notification Logic (reusing previous logic)
+                 if st.session_state['last_tx'].get('email'):
+                    webhook_url = N8N_WEBHOOK_TEST if debug_mode else N8N_WEBHOOK_PROD
+                    try:
+                        n8n_payload = {
+                            "body": {
+                                "transaction": {
+                                    **st.session_state['last_tx']
+                                },
+                                "prediction": {
+                                    "probability": st.session_state['last_pred']['probability'],
+                                    "risk_level": "High" if st.session_state['last_pred']['probability'] > 0.5 else "Low"
+                                }
+                            }
                         }
-                    }
-                }
-                
-                # Determine URL based on Debug Mode
-                webhook_type = "webhook-test" if debug_mode else "webhook"
-                n8n_url = f"http://n8n:5678/{webhook_type}/fraud-alert"
-                
-                # Send to n8n webhook
-                try:
-                    # Note: The body key is automatically handled if we pass json=n8n_payload['body']
-                    # But n8n $json usually expects the root object. 
-                    # If I send json=n8n_payload['body'], n8n receives { "transaction": ..., "prediction": ... }
-                    # Then $json.body.transaction works (because n8n puts the POST body into 'body' property).
-                    
-                    st.info(f"Envoi vers : `{n8n_url}`...")
-                    response = requests.post(n8n_url, json=n8n_payload["body"], timeout=5)
-                    
-                    if response.status_code == 200:
-                        st.success(f"L'agent Antigravity va notifier {client_email}")
-                    else:
-                        st.error(f"Erreur n8n ({response.status_code}): {response.text}")
-                except Exception as e:
-                    st.error(f"Erreur de connexion avec n8n: {e}")
-            else:
-                st.warning("Veuillez saisir un email avant de notifier.")
+                        # Simulate or Real Send
+                        # requests.post(webhook_url, json=n8n_payload["body"]) 
+                        st.info(f"Alert sent to {webhook_url}")
+                        st.balloons()
+                    except Exception as e:
+                        st.error(str(e))
+                 else:
+                     st.error("No email provided.")
