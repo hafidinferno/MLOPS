@@ -151,6 +151,11 @@ async def feedback(feedback_data: FeedbackInput, background_tasks: BackgroundTas
         logger.info("Feedback reçu.")
         # Re-calcul du PCA pour sauvegarde
         data = feedback_data.payload
+        
+        if not data:
+            logger.warning("Empty payload in feedback. Skipping feature processing and saving. (Known limitation in v2)")
+            return {"status": "recorded_only_label"}
+
         X_pca = process_features(data)
         
         # Sauvegarde

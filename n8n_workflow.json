@@ -15,7 +15,7 @@
     {
       "parameters": {
         "model": "phi3:mini",
-        "prompt": "You are a bank security agent. Write a polite email to a customer regarding a suspicious transaction. \nDetails: {{ $json[\"body\"][\"transaction\"] }}\nRisk: {{ $json[\"body\"][\"prediction\"][\"risk_level\"] }}\n\nInclude two links: \n1. VALIDATE (Legitimate): http://localhost:5679/webhook/feedback?id={{ $json[\"body\"][\"transaction\"][\"transaction_id\"] }}&fraud=0\n2. CONFIRM FRAUD: http://localhost:5679/webhook/feedback?id={{ $json[\"body\"][\"transaction\"][\"transaction_id\"] }}&fraud=1"
+        "prompt": "=You are a bank security agent. Write a polite email to a customer regarding a suspicious transaction. \nDetails: {{ JSON.stringify($json[\"body\"][\"transaction\"]) }}\nRisk: {{ $json[\"body\"][\"prediction\"][\"risk_level\"] }}\n\nInclude two links: \n1. VALIDATE (Legitimate): http://localhost:5679/webhook-waiting/{{ $execution.id }}/feedback?id={{ $json[\"body\"][\"transaction\"][\"transaction_id\"] }}&fraud=0\n2. CONFIRM FRAUD: http://localhost:5679/webhook-waiting/{{ $execution.id }}/feedback?id={{ $json[\"body\"][\"transaction\"][\"transaction_id\"] }}&fraud=1"
       },
       "name": "LLM Generate Email",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
@@ -54,27 +54,50 @@
     },
     {
       "parameters": {
-        "httpMethod": "GET",
-        "path": "feedback",
+        "resume": "webhook",
+        "webhookSuffix": "feedback",
+        "webhookMethod": "GET",
         "options": {}
       },
-      "name": "Webhook Feedback",
-      "type": "n8n-nodes-base.webhook",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
       "typeVersion": 1,
-      "position": [250, 500]
+      "position": [250, 500],
+      "webhookId": "bb38a451-63c5-404f-acfc-1686925ae219"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://serving:8000/feedback",
+        "url": "http://serving-api:8080/feedback",
         "jsonParameters": true,
         "options": {},
-        "body": "={{ {\"transaction_id\": $json[\"query\"][\"id\"], \"true_label\": $json[\"query\"][\"fraud\"], \"feature_engineering_input\": {}, \"prediction\": 0} }}"
+        "body": "={{ {\"payload\": {}, \"correct_class\": $json[\"query\"][\"fraud\"].toString() == '1', \"prediction\": false} }}"
       },
       "name": "API Feedback Call",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 2,
       "position": [450, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json[\"query\"][\"fraud\"].toString() == '1' ? \"<!DOCTYPE html><html><head><title>Fraud Confirmed</title><style>body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; background-color: #f8d7da; color: #721c24; } .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: inline-block; } h1 { margin-bottom: 10px; } p { font-size: 1.2em; }</style></head><body><div class='container'><h1>Transaction Marked as Fraud</h1><p>Thank you. We have blocked your card and secured your account.</p></div></body></html>\" : \"<!DOCTYPE html><html><head><title>Transaction Verified</title><style>body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; background-color: #d4edda; color: #155724; } .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: inline-block; } h1 { margin-bottom: 10px; } p { font-size: 1.2em; }</style></head><body><div class='container'><h1>Transaction Verified</h1><p>Thank you. You can continue using your card securely.</p></div></body></html>\" }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [650, 500]
     }
   ],
   "connections": {
@@ -111,11 +134,33 @@
         ]
       ]
     },
-    "Webhook Feedback": {
+    "Gmail": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
       "main": [
         [
           {
             "node": "API Feedback Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Feedback Call": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
