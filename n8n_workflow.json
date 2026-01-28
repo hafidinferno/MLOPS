@@ -15,7 +15,7 @@
     {
       "parameters": {
         "model": "phi3:mini",
-        "prompt": "=You are a bank security agent. Write a polite email to a customer regarding a suspicious transaction. \nDetails: {{ JSON.stringify($json[\"body\"][\"transaction\"]) }}\nRisk: {{ $json[\"body\"][\"prediction\"][\"risk_level\"] }}\n\nInclude two links: \n1. VALIDATE (Legitimate): http://localhost:5679/webhook-waiting/{{ $execution.id }}/feedback?id={{ $json[\"body\"][\"transaction\"][\"transaction_id\"] }}&fraud=0\n2. CONFIRM FRAUD: http://localhost:5679/webhook-waiting/{{ $execution.id }}/feedback?id={{ $json[\"body\"][\"transaction\"][\"transaction_id\"] }}&fraud=1"
+        "prompt": "You are a bank security agent. Write a polite email to a customer regarding a suspicious transaction. \nDetails: {{ JSON.stringify($json[\"body\"][\"transaction\"]) }}\nRisk: {{ $json[\"body\"][\"prediction\"][\"risk_level\"] }}\n\nInclude two links: \n1. VALIDATE (Legitimate): http://127.0.0.1:8800/recommend/CUST_72886 fraud=0\n2. CONFIRM FRAUD: http://localhost:8600"
       },
       "name": "LLM Generate Email",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",

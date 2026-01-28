@@ -1,0 +1,7 @@
+{
+  "id": "019c012d-da6d-7fdb-a5b3-f15f88f75054",
+  "name": "Fraud Detection Monitoring",
+  "description": "Monitoring model performance and data drift.",
+  "org_id": null,
+  "version": "2"
+}
