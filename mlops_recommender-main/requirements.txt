@@ -1,0 +1,6 @@
+numpy>=1.20.0
+fastapi
+uvicorn
+tensorflow
+pandas
+scikit-learn
